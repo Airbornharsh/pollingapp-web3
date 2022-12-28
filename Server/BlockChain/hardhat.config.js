@@ -15,4 +15,4 @@ module.exports = {
       url: `https://eth-goerli.alchemyapi.io/v2/${process.env.ALCHEMY_API_KEY}`,
     },
   },
-};
+}; 

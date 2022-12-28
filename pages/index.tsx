@@ -1,125 +1,51 @@
 import NavBar from "../components/NavBar";
 import { useMoralis, useWeb3Contract } from "react-moralis";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { MdDelete } from "react-icons/md"
 import contractAddress from "../Constants/contractAddress.json";
 import abi from "../Constants/abi.json";
 import { ConnectButton } from "web3uikit";
-import { time } from "console";
+import Link from "next/link";
 
 export default function Home(props: any) {
-  const { isWeb3Enabled } = useMoralis();
-  const [questions, setQuestions] = useState([]);
-  const [totalVotes, setTotalVotes] = useState(0);
-  const [answerIndex, setAnswerIndex] = useState(-1);
-  const [result, setResult] = useState("Result Not Yet Out");
-  const [endTime, setEndTime] = useState(props.timeNow);
+  const { isWeb3Enabled, account } = useMoralis();
+  const [isAdding, setIsAdding] = useState(true)
+  const [endTime, setEndTime] = useState("");
+  const [name, setName] = useState("");
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [isNewuestion, setIsNewQuestion] = useState(false);
+  const [newQuestion, setNewQuestion] = useState("");
+  const [submitted, setSubmitted] = useState(false)
+  const { runContractFunction } = useWeb3Contract({});
 
-  // console.log(Date.now());
+  const onSubmit = async (el: any) => {
+    el.preventDefault();
 
-  const { runContractFunction: getEndTime } = useWeb3Contract({
-    abi: abi["abi"],
-    contractAddress: contractAddress["address"],
-    functionName: "getEndTime",
-  });
-
-  const { runContractFunction: getPollQuestions } = useWeb3Contract({
-    abi: abi["abi"],
-    contractAddress: contractAddress["address"],
-    functionName: "getPollQuestions",
-  });
-
-  const { runContractFunction: getPollNoVotes } = useWeb3Contract({
-    abi: abi["abi"],
-    contractAddress: contractAddress["address"],
-    functionName: "getPollNoVotes",
-  });
-
-  const { runContractFunction: getTotalVotes } = useWeb3Contract({
-    abi: abi["abi"],
-    contractAddress: contractAddress["address"],
-    functionName: "getTotalVotes",
-  });
-
-  const { runContractFunction: Result } = useWeb3Contract({});
-  const { runContractFunction: vote } = useWeb3Contract({});
-
-  useEffect(() => {
-    const onLoad = async () => {
-      const tempEndTime: any = await getEndTime();
-      if (tempEndTime) {
-        setEndTime(parseInt(tempEndTime) * 1000);
-        // setEndTime((new Date((parseInt(tempEndTime)) * 1000)).toLocaleString("en-us", { timeZone: "Asia/Kolkata" }).toString());
-      }
-    };
-
-    if (isWeb3Enabled) onLoad();
-  }, [getEndTime, isWeb3Enabled]);
-
-  useEffect(() => {
-    const onLoad = async () => {
-      const pollQuestions: any = await getPollQuestions();
-      if (pollQuestions.length > 0) setQuestions(pollQuestions)
-    };
-
-    if (isWeb3Enabled) onLoad();
-  }, [getPollQuestions, isWeb3Enabled]);
-
-  useEffect(() => {
-    const onLoad = async () => {
-      const pollVotes: any = await getTotalVotes();
-      if (pollVotes) setTotalVotes(parseInt(pollVotes))
-    };
-
-    if (isWeb3Enabled) onLoad();
-  }, [getTotalVotes, isWeb3Enabled]);
-
-
-  const onSubmit = async (e: any) => {
-    e.preventDefault();
-
-    if (answerIndex > -1 && answerIndex < questions.length) {
+    if (questions.length > 0, name.length > 0, endTime.length > 0) {
       try {
-        await vote({
+
+        await runContractFunction({
           params: {
-            abi: abi["abi"],
-            contractAddress: contractAddress["address"],
-            functionName: "vote",
+            abi: abi,
+            contractAddress: contractAddress,
+            functionName: "addQuestions",
             params: {
-              index: answerIndex
+              id: account ? account.toString() : "",
+              questions: questions,
+              endTime: (new Date(endTime)).getTime(),
+              name: name
             }
           }
-        });
+        })
+
+        alert("Added");
+        setSubmitted(true)
 
       } catch (e) {
-        console.log(e);
+        console.log(e)
       }
     } else {
-      alert("Not Selected");
-    }
-  }
-
-  const getQuestion = (i: number) => {
-    return questions[i];
-  }
-
-  const onResult = async (e: any) => {
-    e.preventDefault();
-
-    try {
-      const temp: any = await Result({
-        params: {
-          abi: abi["abi"],
-          contractAddress: contractAddress["address"],
-          functionName: "Result",
-        }
-      });
-
-      if (parseInt(temp)) {
-        setResult(`Result: ${getQuestion(parseInt(temp))} won`);
-      }
-
-    } catch (e) {
-      console.log(e);
+      alert("Fill it Properly");
     }
   }
 
@@ -127,35 +53,88 @@ export default function Home(props: any) {
     <div className="w-screen  flex justify-start items-center flex-col bg-slate-900 h-screen text-white">
       <NavBar />
       <div className="w-[80vw] max-w-[80rem] flex flex-col">
-        <div className="mt-4 flex justify-center items-center mb-10">
+        <div className="mt-4 flex justify-center items-center flex-col mb-10">
           <ConnectButton moralisAuth={false} />
-        </div>
-        <p>Poll End Time: {(new Date(endTime)).toLocaleString("en-us", { timeZone: "Asia/Kolkata" }).toString()}</p>
-        <p>Total No of Votes Till Now:- {totalVotes}</p>
-        <h2 className="text-[1.3rem] mb-3">Questions</h2>
-        <form className="flex flex-col">
-          <ul className="flex flex-col gap-1">
-            {questions.map((question, i) => {
-              return <li key={i} >
-                <input type={"radio"} name={"question"} className="mr-2" value={i} onChange={(e: any) => {
-                  setAnswerIndex(e.target.value);
+          {account && <div className="self-start">
+            <button className="mt-10 bg-white text-[#25406b] font-semibold px-3 py-1 rounded-xl" onClick={() => {
+              setIsAdding(i => !i);
+            }}>{isAdding ? "Cancel" : "Add Poll"}</button>
+            {isAdding && <form className="mt-4 flex flex-col gap-3">
+              <h3 className="text-[1.4rem] font-semibold">Questions</h3>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold">This is Your Poll Id: </p>
+                <p className="font-thin">{account.toString()}</p>
+
+              </div>
+              <div className="flex gap-3 items-center">
+                <label className="font-semibold">Poll Name:</label>
+                <input className="text-[#25406b] px-2 py-[0.25rem] rounded-md" type={"text"} value={name} onChange={(e) => {
+                  setName(e.target.value);
                 }} />
-                <label>{question}</label>
-              </li>
-            })}
-          </ul>
-          <p className="mt-6">{answerIndex > -1 && answerIndex < questions.length ? `You have Selected ${getQuestion(answerIndex)}` : "Not Selected"}</p>
-          <button className="mt-6 px-2 py-1 bg-slate-600 rounded w-20" onClick={onSubmit}>Confirm</button>
-          <button className="mt-6 px-2 py-1 bg-slate-600 rounded w-20" onClick={async (e) => {
-            e.preventDefault();
-            let temp: any = await getPollNoVotes();
-            temp = temp.map((t: any) => parseInt(t));
-            console.log(temp);
-          }}>Check</button>
-          {Date.now() > endTime && <button className="mt-6 px-2 py-1 bg-slate-600 rounded w-20" onClick={onResult}>Result</button>}
-        </form>
+              </div>
+              <div className="flex gap-3 items-center">
+                <label className="font-semibold">Poll End Time:</label>
+                <input className="text-[#25406b] px-1 py-[0.1rem] rounded-md" type={"datetime-local"} value={endTime} onChange={(e) => {
+                  setEndTime(e.target.value);
+                }} />
+              </div>
+              <div className="text-black mt-2">
+                <ul className="flex flex-col gap-3">
+                  {questions.map((question, i) => {
+                    return <li key={question} className="flex text-white gap-2 items-center">
+                      <label className="font-semibold">Question {i + 1}:</label>
+                      <p className="font-light">{question}</p>
+                      <MdDelete onClick={(e) => {
+                        e.preventDefault();
+
+                        const temp = questions.filter((question, index) => i != index);
+
+                        setQuestions(temp);
+                      }} size={"1.3rem"} color={"red"} className={"cursor-pointer"} />
+                    </li>
+                  })}
+                </ul>
+                {isNewuestion && <div className="flex gap-3 items-center mt-3">
+                  <label className="text-white font-semibold">New Question:</label>
+                  <input className="px-2 py-1 rounded-md w-[18rem]" value={newQuestion} onChange={(e) => {
+                    setNewQuestion(e.target.value);
+                  }} />
+                  <button className=" text-[#25406b] text-[1.5rem] font-semibold rounded-xl" onClick={(e) => {
+                    e.preventDefault();
+
+                    setIsNewQuestion(false);
+
+                  }}>❌</button>
+                  <button className=" text-[#25406b]  text-[1.5rem]  font-semibold rounded-xl" onClick={(e) => {
+                    e.preventDefault();
+
+                    if (newQuestion.length > 0) {
+                      const temp = questions;
+
+                      temp.push(newQuestion);
+
+                      setQuestions(temp);
+
+                      setNewQuestion("");
+                    } else {
+                      alert("No Question to Add")
+                    }
+                  }}>✅</button>
+                </div>}
+                <button className="mt-3 bg-white text-[#25406b] px-2 font-semibold py-1 rounded-xl" onClick={(e) => {
+                  e.preventDefault();
+
+                  setIsNewQuestion(true)
+                }} >Add New Question</button>
+              </div>
+              <button className=" w-[5rem] mt-3 bg-white text-[#25406b] px-2 font-semibold py-1 rounded-xl" onClick={onSubmit}>Submit</button>
+            </form>}
+          </div>}
+          {submitted && <div>
+            <Link className="bg-white  text-black px-2 py-1 rounded" href={account ? `/${account.toString()}` : ""}>Link To Poll</Link>
+          </div>}
+        </div>
       </div>
-      <p className="mt-2">{result}</p>
     </div>
   );
 }

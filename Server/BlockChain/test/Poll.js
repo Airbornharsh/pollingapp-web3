@@ -3,98 +3,182 @@ const {
   loadFixture,
 } = require("@nomicfoundation/hardhat-network-helpers");
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers");
-const { expect } = require("chai");
+const { expect, assert } = require("chai");
 const { ethers } = require("hardhat");
 const { Web3Provider } = require("@ethersproject/providers");
 
 describe("Poll", () => {
-  const questionLoadFixture = async () => {
-    const TEN_MINUTES_IN_SECS = 10 * 60;
-    const endTime = (await time.latest()) + TEN_MINUTES_IN_SECS;
-
-    const questions = ["Dog", "Cat", "Mouse", "All"];
-
+  const deployFixture = async () => {
     const [owner, otherAccount] = await ethers.getSigners();
-
     const Poll = await ethers.getContractFactory("Poll");
-    const poll = await Poll.deploy(questions, endTime);
+    const poll = await Poll.deploy();
 
-    return { poll, endTime, owner, otherAccount, questions };
+    return { poll, owner, otherAccount };
   };
 
-  describe("Deployment", () => {
-    it("It should return if vote time limit is less than 60 seconds", async () => {
-      const questions = ["Dog", "Cat", "Mouse", "All"];
-      const endTime = await time.latest();
+  describe("Adding", () => {
+    it("It should add the endTime", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now();
 
-      const Poll = await ethers.getContractFactory("Poll");
+      await poll.addQuestions(id, questions, endTime, "polling");
 
-      await expect(Poll.deploy(questions, endTime)).to.be.revertedWith(
-        "Poll Should end in the Future and should be 1 Minute Long!"
-      );
+      assert.equal(await poll.getEndTime(id), endTime);
     });
 
-    it("It should set Current pollEndTime", async () => {
-      const { poll, endTime } = await loadFixture(questionLoadFixture);
+    it("It should add the Questions", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now();
 
-      expect(await poll.getEndTime()).to.equal(endTime);
-    });
+      await poll.addQuestions(id, questions, endTime, "polling");
 
-    it("It should Store the Same No of Questions", async () => {
-      const { poll, questions } = await loadFixture(questionLoadFixture);
-
-      expect(await poll.noOfQuestions()).to.equal(questions.length);
-    });
-
-    it("It should Store the Questions", async () => {
-      const { poll, questions } = await loadFixture(questionLoadFixture);
-
-      questions.forEach(async (question, index) => {
-        expect(await poll.question(index)).to.equal(question);
+      questions.map(async (question, i) => {
+        assert.equal(await poll.getQuestion(id, i), question);
       });
     });
 
-    it("It Store the No of Votes to Zero", async () => {
-      const { poll, questions } = await loadFixture(questionLoadFixture);
+    it("It should add all the Questions", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now();
 
-      questions.forEach(async (question, index) => {
-        expect(await poll.noOfVotes(index)).to.equal(0);
+      await poll.addQuestions(id, questions, endTime, "polling");
+
+      assert.equal((await poll.getQuestions(id)).length, questions.length);
+    });
+
+    it("It should add the Votes to 0", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now();
+
+      await poll.addQuestions(id, questions, endTime, "polling");
+
+      questions.map(async (question, i) => {
+        assert.equal(await poll.getVote(id, i), 0);
       });
     });
 
-    
+    it("It should add all the Votes ", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now();
+
+      await poll.addQuestions(id, questions, endTime, "polling");
+
+      assert.equal((await poll.getVotes(id)).length, questions.length);
+    });
+
+    it("It should return empty array of Users", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now();
+
+      await poll.addQuestions(id, questions, endTime, "polling");
+
+      assert.equal((await poll.getUsers(id)).length, 0);
+    });
+
+    it("It should return name of the poll", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now();
+
+      await poll.addQuestions(id, questions, endTime, "polling");
+
+      assert.equal((await poll.getName(id)), "polling");
+    });
   });
 
   describe("Voting", () => {
-    it("It should increase the vote by 1", async () => {
-      const { poll } = await loadFixture(questionLoadFixture);
-      const i = 1;
+    it("It should revert that That time had Ended!", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now() - 50000;
+      const i = 0;
 
-      await poll.vote(i);
+      await poll.addQuestions(id, questions, endTime, "polling");
 
-      expect(await poll.noOfVotes(i)).to.equal(1);
+      await expect(poll.vote(id, i)).to.revertedWith("Time had Ended!");
+    });
+
+    it("It should add the Vote", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now() + 50000;
+      const i = 0;
+
+      await poll.addQuestions(id, questions, endTime, "polling");
+
+      await poll.vote(id, i);
+
+      assert.equal(await poll.getVote(id, i), 1);
+    });
+
+    it("It should revert that User has already voted", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now() + 50000;
+      const i = 0;
+
+      await poll.addQuestions(id, questions, endTime, "polling");
+
+      await poll.vote(id, i);
+
+      await expect(poll.vote(id, i)).to.revertedWith("User Already Exists!");
+    });
+
+    it("It should return the Array of users who voted", async () => {
+      const { poll, owner } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now() + 50000;
+      const i = 0;
+
+      await poll.addQuestions(id, questions, endTime, "polling");
+
+      await poll.vote(id, i);
+
+      assert.equal((await poll.getUsers(id))[0], owner.address);
     });
   });
 
   describe("Result", () => {
-    it("It Should revert if time is not over yet", async () => {
-      const { poll, endTime } = await loadFixture(questionLoadFixture);
+    it("It should return the Array of users who voted", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now() + 50000;
 
-      await expect(poll.Result()).to.be.revertedWith(
-        "Polling is not Yet Over!"
-      );
+      await poll.addQuestions(id, questions, endTime, "polling");
+
+      await expect(poll.result(id)).to.revertedWith("Vote to See the Result!");
     });
 
-    it("It should return the Winner Index", async () => {
-      const { poll, endTime } = await loadFixture(questionLoadFixture);
+    it("It should return the highest Vote Question Index", async () => {
+      const { poll } = await loadFixture(deployFixture);
+      const id = "ew";
+      const questions = ["Question1", "Question2", "Question3"];
+      const endTime = Date.now() + 50000;
+      const i2 = 2;
 
-      const i = 1;
+      await poll.addQuestions(id, questions, endTime, "polling");
 
-      await poll.vote(i);
+      await poll.vote(id, i2);
 
-      await time.increaseTo(endTime + 20);
-
-      expect(await poll.Result()).to.equal(i);
+      assert.equal(await poll.result(id), i2);
     });
   });
 });
